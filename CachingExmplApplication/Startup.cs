@@ -11,6 +11,10 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using EasyCaching.Core;
+using EasyCaching.InMemory;
+using EasyCaching.Redis;
+using EasyCaching.Core.Configurations;
 
 namespace CachingExmplApplication
 {
@@ -34,8 +38,24 @@ namespace CachingExmplApplication
             // resp cache
             services.AddResponseCaching();
 
-            // dist cache
+            // redis distr caching
             services.AddDistributedMemoryCache();
+            services.AddEasyCaching(setup =>
+            {
+                setup.UseRedis(redisConfig =>
+                {
+                    redisConfig.DBConfig.Endpoints.Add(new ServerEndPoint("192.168.0.4", 6379));
+                    redisConfig.DBConfig.AllowAdmin = true;
+                    redisConfig.EnableLogging = true;
+                }, name: "comp_cache");
+
+                setup.UseRedis(redisConfig =>
+                {
+                    redisConfig.DBConfig.Endpoints.Add(new ServerEndPoint("localhost", 6379));
+                    redisConfig.EnableLogging = true;
+                    redisConfig.DBConfig.AllowAdmin = true;
+                }, "local_cache");
+            });
             
             // sess
             services.AddSession(sess =>
@@ -47,8 +67,7 @@ namespace CachingExmplApplication
             });
         }
 
-        public void Configure(IWebHostEnvironment env, IApplicationBuilder app, 
-            IHostApplicationLifetime lifetime, IDistributedCache cache)
+        public void Configure(IWebHostEnvironment env, IApplicationBuilder app)
         {
             if (env.IsDevelopment())
                 app.UseDeveloperExceptionPage();

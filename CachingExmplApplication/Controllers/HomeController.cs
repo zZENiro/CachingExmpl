@@ -6,6 +6,7 @@ using System.Runtime.Serialization.Formatters.Binary;
 using System.Threading.Tasks;
 using CachingExmplApplication.Data;
 using CachingExmplApplication.Models;
+using EasyCaching.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Distributed;
@@ -15,49 +16,33 @@ namespace CachingExmplApplication.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [ResponseCache(Location = ResponseCacheLocation.Client, Duration = 100, NoStore = false, VaryByHeader = "User-Agent")]
     public class HomeController : ControllerBase
     {
-        IDistributedCache _distrCache;
         PeopleDbContext _peopleDb;
+        IEasyCachingProvider _localCacheProvider;
+        IEasyCachingProvider _compCacheProvider;
 
-        public HomeController(IDistributedCache distributedCache, PeopleDbContext peopleDb)
+        public HomeController(PeopleDbContext peopleDb, IEasyCachingProviderFactory factory)
         {
-            _distrCache = distributedCache;
+            _localCacheProvider = factory.GetCachingProvider("local_cache");
+            _compCacheProvider = factory.GetCachingProvider("comp_cache");
             _peopleDb = peopleDb;
         }
 
         [HttpGet("[action]")]
         public async Task<JsonResult> GetAll()
         {
-            List<Person> people = null;
-            var resultBinary = await _distrCache.GetAsync("peopleCollection");
-            var formatter = new BinaryFormatter();
+            var peopleCache = _compCacheProvider.Get<List<Person>>("peopleCollection");
 
-            if (resultBinary is null)
+            if (!peopleCache.HasValue)
             {
-                using (MemoryStream stream = new MemoryStream())
-                {
-                    var src = _peopleDb.People.ToList();
-                    formatter.Serialize(stream, src);
-                    var binaryCollection = stream.ToArray();
-
-                    await _distrCache.SetAsync(
-                        key:     "peopleCollection",
-                        value:   binaryCollection,
-                        options: new DistributedCacheEntryOptions()
-                        {
-                            AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(10),
-                            SlidingExpiration = TimeSpan.FromSeconds(5)
-                        });
-
-                    return new JsonResult(src);
-                }
+                var srcCollection = _peopleDb.People.ToList();
+                _compCacheProvider.Set("peopleCollection", srcCollection, TimeSpan.FromSeconds(15));
+                return new JsonResult(srcCollection);
             }
-            else
-                using (MemoryStream stream = new MemoryStream(resultBinary))
-                {
-                    return new JsonResult(formatter.Deserialize(stream) as List<Person>);
-                }
+
+            return new JsonResult(peopleCache.Value);
         }
 
     }

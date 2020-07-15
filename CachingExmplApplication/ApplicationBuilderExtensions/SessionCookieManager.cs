@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,6 +17,11 @@ namespace CachingExmplApplication.ApplicationBuilderExtensions
                     context.Response.Cookies.Append("name", "Nikita");
 
                 await next.Invoke();
+
+                if (!(context.Request.Cookies["name"] is null))
+                    await context.Response.WriteAsync(context.Request.Cookies["name"]);
+                else
+                    await context.Response.WriteAsync("Cookies 'name' is empty");
             });
         }
     }
