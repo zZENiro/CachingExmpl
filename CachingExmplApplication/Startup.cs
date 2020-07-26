@@ -20,6 +20,8 @@ namespace CachingExmplApplication
 {
     public class Startup
     {
+        IConfiguration _configFromLoh;
+
         IConfiguration _configuration;
 
         public Startup(IConfiguration configuration)
